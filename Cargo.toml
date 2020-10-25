@@ -1,0 +1,20 @@
+[package]
+name = "minecraft-aws"
+version = "0.1.0"
+authors = ["MeiyouMayo <meiyoumayo.1@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rusoto_core = "0.45.0"
+rusoto_ec2 = "0.45.0"
+rusoto_credential = "0.45.0"
+rusoto_sts = "0.45.0"
+
+tokio = { version = "0.2", features = ["full"] }
+
+csv = "1.1.3"
+
+[dev-dependencies]
+tokio-test = "0.3.0"
