@@ -38,8 +38,8 @@ pub struct Ec2Config {
     pub instance_id: Option<String>,
     ///role arn assuming when interacting
     pub role_arn: Option<String>,
-    ///path of credentials.csv
-    pub cred_csv_path: Option<String>,
+    ///path of sshkey
+    pub ssh_key: Option<String>,
     ///run to initialize
     pub init_script : Option<Vec<String>>,
     ///Script to initialize vm
