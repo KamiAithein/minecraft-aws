@@ -130,7 +130,7 @@ impl Server for MCServer {
 
     async fn stop(&mut self) -> Result<(), Box<dyn Error>> {
         let ssh: SSHAgent = loop {
-            match SSHAgent::new(&self.ec2, Path::new("C:/Users/k3nne/Documents/aws/credentials/default/aws-ec2-test.pem")).await {
+            match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
                 Ok(agent) => break agent,
                 Err(e) => {
                     // panic!("couldnt make ssh agent! Correct key?");
@@ -145,7 +145,7 @@ impl Server for MCServer {
 
     async fn command(&mut self, cmd: &str) -> Result<String, Box<dyn Error>> {
         let ssh: SSHAgent = loop {
-            match SSHAgent::new(&self.ec2, Path::new("C:/Users/k3nne/Documents/aws/credentials/default/aws-ec2-test.pem")).await {
+            match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
                 Ok(agent) => break agent,
                 Err(e) => {
                     // panic!("couldnt make ssh agent! Correct key?");
@@ -159,7 +159,7 @@ impl Server for MCServer {
 
     async fn log(&self) -> Result<String, Box<dyn Error>> {
         let ssh: SSHAgent = loop {
-            match SSHAgent::new(&self.ec2, Path::new("C:/Users/k3nne/Documents/aws/credentials/default/aws-ec2-test.pem")).await {
+            match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
                 Ok(agent) => break agent,
                 Err(e) => {
                     // panic!("couldnt make ssh agent! Correct key?");
