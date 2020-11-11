@@ -3,23 +3,25 @@ extern crate ron;
 
 mod mc_server;
 
+mod aws;
+
 use mc_server::server::*;
 
 use std::fs::{File, read_to_string};
 use std::collections::HashMap;
 
-use rust_ec2::credentials::set_env::set_env_cred_from;
-use rust_ec2::virtual_machine::ec2;
-use rust_ec2::virtual_machine::vm::{VMCore, VMNetwork};
-use rust_ec2::ssh::ssh_agent;
+use crate::aws::credentials::set_env::set_env_cred_from;
+use crate::aws::virtual_machine::ec2;
+use crate::aws::virtual_machine::vm::{VMCore, VMNetwork};
+use crate::aws::ssh::ssh_agent;
 
 use std::net::TcpStream;
 use std::path::Path;
 use ssh2::{Session, Channel, ReadWindow};
 use std::io::Read;
-use rust_ec2::ssh::ssh_agent::SSHAgent;
+use crate::aws::ssh::ssh_agent::SSHAgent;
 use ron::from_str;
-use rust_ec2::virtual_machine::ec2::instance::Ec2Config;
+use crate::aws::virtual_machine::ec2::instance::Ec2Config;
 use serde::Deserialize;
 use std::thread;
 
