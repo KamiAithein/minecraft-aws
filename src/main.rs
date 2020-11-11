@@ -1,6 +1,12 @@
 extern crate ssh2;
+extern crate ron;
 
-use std::fs::File;
+mod mc_server;
+
+use mc_server::server::*;
+
+use std::fs::{File, read_to_string};
+use std::collections::HashMap;
 
 use rust_ec2::credentials::set_env::set_env_cred_from;
 use rust_ec2::virtual_machine::ec2;
@@ -9,26 +15,53 @@ use rust_ec2::ssh::ssh_agent;
 
 use std::net::TcpStream;
 use std::path::Path;
-use ssh2::Session;
+use ssh2::{Session, Channel, ReadWindow};
 use std::io::Read;
+use rust_ec2::ssh::ssh_agent::SSHAgent;
+use ron::from_str;
+use rust_ec2::virtual_machine::ec2::instance::Ec2Config;
+use serde::Deserialize;
+use std::thread;
+
+
+const CONFIG_PATH: &str = "data/ec2_credentials.ron";
+///dev or prod
+const CREDENTIAL: &str = "dev";
+
+fn DEP_get_config(key: &str) -> Option<Ec2Config> {
+    let mut configs: HashMap<String, Ec2Config> = from_str(&*read_to_string(CONFIG_PATH).unwrap()).unwrap();
+    return configs.remove(key);
+}
 
 #[tokio::main]
-async fn main() -> Result<(), ()> {
-    let iam_cred_file = File::open("C:/Users/k3nne/Documents/aws/credentials/mc-server/new_user_credentials.csv").unwrap();
+async fn main() {
+    println!("Start! {} ", CREDENTIAL);
+    let config = match DEP_get_config(CREDENTIAL) {
+        Some(val) => val,
+        None => panic!("credential with given key not found!")
+    };
+
+    println!("{:?}", config);
+    let iam_cred_file = File::open(config.cred_csv_path.as_ref().unwrap()).unwrap();
     set_env_cred_from(iam_cred_file).await;
+    println!("Credentials!");
 
-    let mut ec2 = ec2::instance::Ec2Object::retrieve().await.unwrap();
-    ec2.status().await;
-    ec2.start().await;
+    let mut ec2 = match ec2::instance::Ec2Object::retrieve(&*config.instance_id.as_ref().unwrap(), &*config.role_arn.as_ref().unwrap()).await {
+        Some(ec2) => ec2,
+        None => panic!("Couldn't find instance! Does it exist?")
+    };
 
-   let ssh = match ssh_agent::SSHAgent::new(&ec2, Path::new("C:/Users/k3nne/Documents/aws/credentials/default/aws-ec2-test.pem")).await {
-       Ok(val) => val,
-       Err(e) => panic!("couldn't make ssh agent!")
-   };
 
-    println!("{}",ssh.execute("touch this_worked_again").await);
+    let mut server = mc_server::server::MCServer::new(ec2, config);
+    // server.start().await;
 
-    ec2.stop().await;
+    println!("{}",server.log().await.unwrap());
 
-    Ok(())
+    //
+    // // run(&ssh, "cd ./minecraft && sudo nohup ./run.sh > ~/minecraft_out.txt &").await;
+    // println!("status: {:?}", (ec2.status()).await);
+    // loop {
+    //     run(&ssh, "cat minecraft_out.txt");
+    //     std::thread::sleep(std::time::Duration::from_secs(5));
+    // }
 }
