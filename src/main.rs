@@ -79,12 +79,12 @@ async fn main() {
     //1:username
     //2:access key id
     //3:secret access key
-    let mut args: Vec<String> = env::args().collect();
-    println!("{:?}", args);
+    // let mut args: Vec<String> = env::args().collect();
+    // println!("{:?}", args);
 
     let env_cred = Credential {
-        access_key_id: args[2].clone(),
-        secret_access_key: args[3].clone()
+        access_key_id: env::var("AWS_ACCESS_KEY_ID").unwrap().clone(),
+        secret_access_key: env::var("AWS_SECRET_ACCESS_KEY").unwrap().clone()
     };
     set_env_cred(env_cred).await;
 
