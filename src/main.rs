@@ -1,3 +1,5 @@
+#![feature(proc_macro_hygiene, decl_macro)]
+
 extern crate ssh2;
 extern crate ron;
 
@@ -35,6 +37,15 @@ fn DEP_get_config(key: &str) -> Option<Ec2Config> {
     return configs.remove(key);
 }
 
+
+
+#[macro_use] extern crate rocket;
+
+#[get("/")]
+fn index() -> &'static str {
+    "Hello, world!"
+}
+
 #[tokio::main]
 async fn main() {
     println!("Start! {} ", CREDENTIAL);
@@ -58,6 +69,7 @@ async fn main() {
     // server.start().await;
 
     println!("{}",server.log().await.unwrap());
+    rocket::ignite().mount("/", routes![index]).launch();
 
     //
     // // run(&ssh, "cd ./minecraft && sudo nohup ./run.sh > ~/minecraft_out.txt &").await;

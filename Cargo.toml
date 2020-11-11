@@ -25,5 +25,7 @@ async-trait = "0.1.41"
 
 serde = "1.0.117"
 
+rocket = "0.4.6"
+
 [dev-dependencies]
 tokio-test = "0.3.0"
