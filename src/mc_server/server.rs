@@ -23,7 +23,7 @@ use std::thread;
 use std::error::Error;
 
 use async_trait::async_trait;
-
+use rocket::futures::TryFutureExt;
 
 
 fn DEP_on_start(ssh: &SSHAgent, startup: &Vec<String>) {
@@ -57,6 +57,10 @@ pub trait Server {
     async fn command(&mut self, cmd: &str) -> Result<String, Box<dyn Error>>;
     ///Get the current log of the server
     async fn log(&self) -> Result<String, Box<dyn Error>>;
+
+    async fn get_ip(&self) -> Result<String, Box<dyn Error>>;
+
+    async fn status(&self) -> Result<String, Box<dyn Error>>;
 }
 pub struct MCServer {
     ec2: Ec2Object,
@@ -72,10 +76,12 @@ impl MCServer {
     }
 }
 
+unsafe impl Send for MCServer{}
+unsafe impl Sync for MCServer{}
+
 #[async_trait]
 impl Server for MCServer {
     async fn start(&mut self) -> Result<(), Box<dyn Error>> {
-        println!("ec2!");
         let status = match self.ec2.status().await {
             Some(val) => val,
             None => panic!("No status! Correct id?")
@@ -100,23 +106,18 @@ impl Server for MCServer {
             };
         };
 
-        println!("ssh threads!!");
-        
+
         let init: Vec<String> = self.config.init_script.as_ref().unwrap().clone();
         let main: Vec<String> = self.config.main_script.as_ref().unwrap().clone();
 
         // thread::spawn(move ||{
-            println!("main!");
             if !DEP_exec(&ssh, "ps -aux").contains("minecraft") {
-                println!("running main script!");
                 for command in main {
                     ssh.execute(&*command);
                     // run(ssh, &**command).await;
                 }
             }
-            println!("start!");
             if !DEP_exec(&ssh, "ls ~/minecraft").contains("server.jar") {
-                println!("making minecraft!");
                 for command in init {
                     DEP_run(&ssh, &*command);
                 }
@@ -169,4 +170,12 @@ impl Server for MCServer {
         };
         Ok(DEP_exec(&ssh, "cat ~/minecraft/logs/latest.log"))
     }
+
+    async fn get_ip(&self) -> Result<String, Box<dyn Error>> {
+        Ok(self.ec2.get_public_ip().await.unwrap_or_else(|| "couldnt get ip".parse().unwrap()))
+    }
+    async fn status(&self) -> Result<String, Box<dyn Error>> {
+        Ok(self.ec2.status().await.unwrap_or_else(|| "couldn't get status".parse().unwrap()))
+    }
+
 }

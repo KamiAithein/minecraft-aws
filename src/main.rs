@@ -37,6 +37,10 @@ use tokio::io::AsyncReadExt;
 use crate::aws::credentials::credential::Credential;
 
 use std::str;
+use rocket::http::RawStr;
+use rocket::State;
+
+use tokio::sync::Mutex;
 
 
 // const CONFIG_PATH: &str = "data/ec2_credentials.ron";
@@ -51,7 +55,7 @@ fn DEP_get_config(config: &str, key: &str) -> Option<Ec2Config> {
 async fn DEP_get_bucket_obj(obj: &str) -> String {
     let s3 = S3Client::new(Region::UsEast2);
     let mut req = GetObjectRequest::default();
-    req.bucket = "koepckeminecraftawsbucket".parse().unwrap();
+    req.bucket = env::var("AWS_BUCKET").unwrap();
     req.key = obj.parse().unwrap();
     let res = s3.get_object(req).await.unwrap();
     let mut buf = Vec::<u8>::new();
@@ -70,7 +74,36 @@ async fn DEP_get_bucket_obj(obj: &str) -> String {
 
 #[get("/")]
 fn index() -> &'static str {
-    "Hello, world!"
+    "server turns off every hour. This will eventually change to 1 hour after everyone is offline\n\n\
+    if the page you are trying to access is taking a while to load, the server is likely starting or stopping \n\
+    and will load within 2 minutes. (I'm having issues with threads server-side and Rust is not forgiving.\n\n\
+    access by going to these links example:(heroku.whatever.the.url.is.com/command/start)\n\n\
+    currently implemented: \n\
+    \t/command/start\n\
+    \t/command/status\n\
+    start will start server if off, then give ip, otherwise will immediately give ip\n\
+    status will give status and ip if can get ip"
+}
+#[get("/command/<command>")]
+async fn command(command: &RawStr, server: State<'_,Mutex<MCServer>>) -> String {
+    match command.as_str() {
+        "start" => {
+            if!((*server.lock().await).status().await.unwrap() == "running") {
+                (*server.lock().await).start().await;
+                (*server.lock().await).get_ip().await.unwrap()
+            }
+            else {
+                (*server.lock().await).get_ip().await.unwrap()
+            }
+        },
+        "status" => {
+            let status = (*server.lock().await).status().await.unwrap().clone();
+            let ip =  (*server.lock().await).get_ip().await.unwrap().clone();
+            let logs = (*server.lock().await).log().await.unwrap().clone();
+            format!("status: {}\nip: {}\nlogs: {}", status, ip, logs)
+        }
+        _ => format!("unknown command!")
+    }
 }
 
 #[tokio::main]
@@ -90,7 +123,7 @@ async fn main() {
 
     let config_str = DEP_get_bucket_obj("ec2_credentials.ron").await;
 
-    let config = match DEP_get_config(&*config_str, CREDENTIAL) {
+    let config = match DEP_get_config(&*config_str, &*env::var("PRODDEV").unwrap()) {
         Some(val) => val,
         None => panic!("credential with given key not found!")
     };
@@ -107,11 +140,16 @@ async fn main() {
     };
 
 
-    let mut server = mc_server::server::MCServer::new(ec2, config);
+    let mut server_rw = Mutex::new(mc_server::server::MCServer::new(ec2, config));
+    // let mut off_clock = Mutex::new(timer::Timer::new());
     // server.start().await;
 
-    println!("{}",server.log().await.unwrap());
-    rocket::ignite().mount("/", routes![index]).launch();
+    // println!("{}",server.log().await.unwrap());
+    rocket::ignite().mount("/", routes![index, command])
+        .manage(server_rw)
+        // .manage(off_clock)
+        .launch().await;
+    // rocket::ignite()
 
 
     // run(&ssh, "cd ./minecraft && sudo nohup ./run.sh > ~/minecraft_out.txt &").await;
