@@ -62,9 +62,7 @@ async fn DEP_get_bucket_obj(obj: &str) -> String {
     let res = s3.get_object(req).await.unwrap();
     let mut buf = Vec::<u8>::new();
     res.body.unwrap().into_async_read().read_to_end(&mut buf).await;
-    for val in &buf {
-        print!("{}",*val as char);
-    }
+
     let mut config_str = String::new();
 
     config_str.push_str(str::from_utf8(&*buf).unwrap());
@@ -87,20 +85,21 @@ fn index() -> &'static str {
     status will give status and ip if can get ip"
 }
 #[get("/command/<command>")]
-async fn command(command: &RawStr, server: State<'_,Mutex<MCServer>>) -> String {
+async fn command(command: &RawStr) -> String {
+    let mut server = DEP_get_server().await;
     match command.as_str() {
         "start" => {
-            let status = (*server.lock().await).status().await.unwrap();
+            let status = server.status().await.unwrap();
 
-            let ip = (*server.lock().await).start().await.unwrap();
+            let ip = server.start().await.unwrap();
 
             return ip;
         },
         "status" => {
-            let status = (*server.lock().await).status().await.unwrap().clone();
+            let status = server.status().await.unwrap().clone();
             if &*status == "running" {
-                let ip_good = ((*server.lock().await).get_ip().await.unwrap().clone());
-                let logs_good = (*server.lock().await).log().await.unwrap().clone();
+                let ip_good = (server.get_ip().await.unwrap().clone());
+                let logs_good = server.log().await.unwrap().clone();
                 format!("status: {}\nip: {}\nlogs: {}", status, ip_good, logs_good)
             }
             else{
@@ -108,9 +107,9 @@ async fn command(command: &RawStr, server: State<'_,Mutex<MCServer>>) -> String 
             }
         }
         "stop" => {
-            let status = (*server.lock().await).status().await.unwrap().clone();
+            let status = server.status().await.unwrap().clone();
             if &*status == "running" {
-                (*server.lock().await).stop().await;
+                server.stop().await;
                 format!("stopped!")
             }
             else {
@@ -182,13 +181,11 @@ async fn main() {
 
 
 
-    let mut server_rw = Mutex::new(DEP_get_server().await);
     // let mut off_clock = Mutex::new(timer::Timer::new());
     // server.start().await;
 
     // println!("{}",server.log().await.unwrap());
     rocket::ignite().mount("/", routes![index, command])
-        .manage(server_rw)
         // .manage(off_clock)
         .launch().await;
     // rocket::ignite()
