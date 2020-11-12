@@ -49,8 +49,8 @@ fn DEP_run(ssh: &SSHAgent, cmd: &str) {
 ///a mc server
 #[async_trait]
 pub trait Server {
-    ///Start the given mc server
-    async fn start(&mut self) -> Result<(), Box<dyn Error>>;
+    ///Start the given mc server retuurn ip
+    async fn start(&mut self) -> Result<(String), Box<dyn Error>>;
     ///Stop the given mc server
     async fn stop(&mut self) -> Result<(), Box<dyn Error>>;
     ///Execute the mc command given on the server, returning the server response if no error
@@ -76,12 +76,9 @@ impl MCServer {
     }
 }
 
-unsafe impl Send for MCServer{}
-unsafe impl Sync for MCServer{}
-
 #[async_trait]
 impl Server for MCServer {
-    async fn start(&mut self) -> Result<(), Box<dyn Error>> {
+    async fn start(&mut self) -> Result<(String), Box<dyn Error>> {
         let status = match self.ec2.status().await {
             Some(val) => val,
             None => panic!("No status! Correct id?")
@@ -96,7 +93,7 @@ impl Server for MCServer {
             }
             _ => {}
         }
-        let ssh: SSHAgent = loop {
+        let mut ssh: SSHAgent = loop {
             match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
                 Ok(agent) => break agent,
                 Err(e) => {
@@ -111,26 +108,28 @@ impl Server for MCServer {
         let main: Vec<String> = self.config.main_script.as_ref().unwrap().clone();
 
         // thread::spawn(move ||{
+        if !DEP_exec(&ssh, "ls ~/minecraft").contains("server.jar") {
+            for command in init {
+                DEP_run(&ssh, &*command);
+            }
+        }
             if !DEP_exec(&ssh, "ps -aux").contains("minecraft") {
                 for command in main {
-                    ssh.execute(&*command);
+                    println!("main: {}", ssh.execute(&*command));
                     // run(ssh, &**command).await;
                 }
             }
-            if !DEP_exec(&ssh, "ls ~/minecraft").contains("server.jar") {
-                for command in init {
-                    DEP_run(&ssh, &*command);
-                }
-            }
+
         // });
         // DEP_on_start(&ssh, &init.clone());
         // DEP_on_main(&ssh, &main.clone());
-
-        return Ok(());//TODO actual return
+        ssh.close();
+        let ip = self.get_ip().await.unwrap();
+        return Ok((ip));//TODO actual return
     }
 
     async fn stop(&mut self) -> Result<(), Box<dyn Error>> {
-        let ssh: SSHAgent = loop {
+        let mut ssh: SSHAgent = loop {
             match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
                 Ok(agent) => break agent,
                 Err(e) => {
@@ -141,11 +140,12 @@ impl Server for MCServer {
         };
         self.command("stop").await;
         DEP_run(&ssh, &*format!("sudo screen -S mc -X quit"));
+        ssh.close();
         Ok(()) //TODO actual return
     }
 
     async fn command(&mut self, cmd: &str) -> Result<String, Box<dyn Error>> {
-        let ssh: SSHAgent = loop {
+        let mut ssh: SSHAgent = loop {
             match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
                 Ok(agent) => break agent,
                 Err(e) => {
@@ -155,6 +155,7 @@ impl Server for MCServer {
             };
         };
         DEP_run(&ssh, &*format!("sudo screen -S mc -X stuff \"{}^M\"", cmd));
+        ssh.close();
         Ok("()".parse().unwrap()) //TODO actual thing
     }
 

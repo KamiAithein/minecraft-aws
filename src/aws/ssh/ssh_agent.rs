@@ -55,6 +55,10 @@ impl SSHAgent {
         result_string
     }
 
+    pub fn close(&mut self) {
+        self.session.disconnect(None, "", None);
+    }
+
     ///Creates session channel to interact with
     pub fn reserve_channel(&self) -> Channel {
         return  self.session.channel_session().unwrap();
