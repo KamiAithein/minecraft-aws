@@ -13,6 +13,7 @@ use async_trait::async_trait;
 use crate::aws::virtual_machine::vm::VMNetwork;
 
 use serde::Deserialize;
+use futures::executor::{block_on, block_on_stream};
 
 
 const AMI_TYPE:&str = "t2.micro";
@@ -47,6 +48,7 @@ pub struct Ec2Config {
     pub main_script: Option<Vec<String>>
 }
 impl Ec2Object {
+
     /// returns default tag as defined by const default values in instance.rs
     pub fn default_tag() -> rusoto_ec2::Tag {
         rusoto_ec2::Tag{key:Some(TAG_KEY.to_string()), value:Some(TAG_VAL.to_string())}
@@ -76,6 +78,7 @@ impl Ec2Object {
     /// returns DescribeInstanceResult from creating default DescribeInstanceRequest
     async fn describe_instances(client: &Ec2Client) -> DescribeInstancesResult {
         let desc_instances_req = DescribeInstancesRequest::default();
+        println!("describe instances!");
         return match client.describe_instances(desc_instances_req).await {
             Ok(val) => val,
             Err(e) => panic!("Couldn't describe instances, do you have correct permissions?")
@@ -84,6 +87,7 @@ impl Ec2Object {
 
     /// gets instance by instance_id
     async fn get_instance(ec2:&Ec2Client, instance_id: &String) -> Option<Instance> {
+        println!("get_instance");
         let filter = |instance: &Instance| {
             match &instance.instance_id {
                 Some(id) => id.to_string() == instance_id.to_string(),
@@ -92,6 +96,8 @@ impl Ec2Object {
         };
         return match Self::filter_instances(ec2, &filter).await {
             Some(mut vec) => {
+                println!("filter!");
+
                 assert_eq!(vec.len(), 1);
 
                 Some(vec.remove(0))
@@ -103,7 +109,7 @@ impl Ec2Object {
     /// filters all instances by given filter
     async fn filter_instances<F: Fn(&Instance, ) -> bool>(ec2:&Ec2Client, filter:&F) -> Option<Vec<Instance>> {
         let desc_res = Self::describe_instances(ec2).await;
-
+        println!("filter_instances!");
         let mut matches:Vec<Instance> = vec![];
         //I don't really know what a reservation is but apparently you can get more than one?
         for reservation in &desc_res.reservations? {
@@ -135,8 +141,8 @@ impl crate::aws::virtual_machine::vm::VMCore for Ec2Object {
                     instance_id: instance_id.to_string()
                 })
             ,
-            None => {None}
-        }
+            None => { None }
+        };
     }
 
     async fn status(&self) -> Option<String> {

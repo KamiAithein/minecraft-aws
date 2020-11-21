@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html
+        PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+    <title>index</title>
+    <script type="text/javascript">
+        <![CDATA[
+        function status() {
+            document.getElementById("status_p").innerHTML = "shibby shibby shoo let me try and get that for you..."
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    document.getElementById("status_p").innerHTML = this.responseText;
+                }
+            };
+            xhttp.open("GET", "command/status", true);
+            xhttp.send();
+        }
+        function start() {
+            document.getElementById("start_p").innerHTML = "starting...";
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    document.getElementById("start_p").innerHTML = this.responseText;
+                }
+            };
+            xhttp.open("GET", "command/start", true);
+            xhttp.send();
+        }
+        ]]>
+    </script>
+</head>
+<body>
+<button type="button" onclick="start()">start</button>
+<p id="start_p"></p>
+<button type="button" onclick="status()">status</button>
+<p id="status_p"></p>
+
+
+</body>
+</html>

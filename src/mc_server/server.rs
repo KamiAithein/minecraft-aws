@@ -65,13 +65,15 @@ pub trait Server {
 pub struct MCServer {
     ec2: Ec2Object,
     config: Ec2Config,
+    ssh: SSHAgent
 }
 
 impl MCServer {
-    pub fn new(ec2: Ec2Object, config: Ec2Config) -> MCServer {
+    pub fn new(ec2: Ec2Object, config: Ec2Config, ssh: SSHAgent) -> MCServer {
         MCServer {
             ec2,
             config,
+            ssh
         }
     }
 }
@@ -93,29 +95,20 @@ impl Server for MCServer {
             }
             _ => {}
         }
-        let mut ssh: SSHAgent = loop {
-            match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
-                Ok(agent) => break agent,
-                Err(e) => {
-                    // panic!("couldnt make ssh agent! Correct key?");
-                    std::thread::sleep(std::time::Duration::from_secs(5));
-                }
-            };
-        };
 
 
         let init: Vec<String> = self.config.init_script.as_ref().unwrap().clone();
         let main: Vec<String> = self.config.main_script.as_ref().unwrap().clone();
 
         // thread::spawn(move ||{
-        if !DEP_exec(&ssh, "ls ~/minecraft").contains("server.jar") {
+        if !DEP_exec(&self.ssh, "ls ~/minecraft").contains("server.jar") {
             for command in init {
-                DEP_run(&ssh, &*command);
+                DEP_run(&self.ssh, &*command);
             }
         }
-            if !DEP_exec(&ssh, "ps -aux").contains("minecraft") {
+            if !DEP_exec(&self.ssh, "ps -aux").contains("minecraft") {
                 for command in main {
-                    println!("main: {}", ssh.execute(&*command));
+                    println!("main: {}", self.ssh.execute(&*command));
                     // run(ssh, &**command).await;
                 }
             }
@@ -123,53 +116,29 @@ impl Server for MCServer {
         // });
         // DEP_on_start(&ssh, &init.clone());
         // DEP_on_main(&ssh, &main.clone());
-        ssh.close();
+
         let ip = self.get_ip().await.unwrap();
         return Ok((ip));//TODO actual return
     }
 
     async fn stop(&mut self) -> Result<(), Box<dyn Error>> {
-        let mut ssh: SSHAgent = loop {
-            match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
-                Ok(agent) => break agent,
-                Err(e) => {
-                    // panic!("couldnt make ssh agent! Correct key?");
-                    std::thread::sleep(std::time::Duration::from_secs(5));
-                }
-            };
-        };
+
         self.command("stop").await;
-        DEP_run(&ssh, &*format!("sudo screen -S mc -X quit"));
-        ssh.close();
+        DEP_run(&self.ssh, &*format!("sudo shutdown 0"));
+
         Ok(()) //TODO actual return
     }
 
     async fn command(&mut self, cmd: &str) -> Result<String, Box<dyn Error>> {
-        let mut ssh: SSHAgent = loop {
-            match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
-                Ok(agent) => break agent,
-                Err(e) => {
-                    // panic!("couldnt make ssh agent! Correct key?");
-                    std::thread::sleep(std::time::Duration::from_secs(5));
-                }
-            };
-        };
-        DEP_run(&ssh, &*format!("sudo screen -S mc -X stuff \"{}^M\"", cmd));
-        ssh.close();
+
+        DEP_run(&self.ssh, &*format!("sudo screen -S mc -X stuff \"{}^M\"", cmd));
+
         Ok("()".parse().unwrap()) //TODO actual thing
     }
 
     async fn log(&self) -> Result<String, Box<dyn Error>> {
-        let ssh: SSHAgent = loop {
-            match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
-                Ok(agent) => break agent,
-                Err(e) => {
-                    // panic!("couldnt make ssh agent! Correct key?");
-                    std::thread::sleep(std::time::Duration::from_secs(5));
-                }
-            };
-        };
-        Ok(DEP_exec(&ssh, "cat ~/minecraft/logs/latest.log"))
+
+        Ok(DEP_exec(&self.ssh, "cat ~/minecraft/logs/latest.log"))
     }
 
     async fn get_ip(&self) -> Result<String, Box<dyn Error>> {

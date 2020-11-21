@@ -28,7 +28,7 @@ use crate::aws::ssh::ssh_agent::SSHAgent;
 use ron::from_str;
 use crate::aws::virtual_machine::ec2::instance::{Ec2Config, Ec2Object};
 use serde::Deserialize;
-use std::thread;
+use std::{thread, io};
 use rusoto_core::Region;
 use rusoto_s3::{S3Client, S3, GetObjectRequest};
 
@@ -39,15 +39,22 @@ use crate::aws::credentials::credential::Credential;
 
 use std::str;
 use rocket::http::RawStr;
-use rocket::State;
+use rocket::{State, futures};
 
 use tokio::sync::Mutex;
 use tokio::runtime::Runtime;
+use rocket::response::NamedFile;
+use rocket::response::status::NotFound;
+use rocket::fairing::AdHoc;
+use std::sync::mpsc;
+use std::time::UNIX_EPOCH;
 
 
 // const CONFIG_PATH: &str = "data/ec2_credentials.ron";
 ///dev or prod
 const CREDENTIAL: &str = "dev";
+
+struct KillHandler(mpsc::SyncSender<()>);
 
 fn DEP_get_config(config: &str, key: &str) -> Option<Ec2Config> {
     let mut configs: HashMap<String, Ec2Config> = from_str(config).unwrap();
@@ -73,26 +80,24 @@ async fn DEP_get_bucket_obj(obj: &str) -> String {
 #[macro_use] extern crate rocket;
 
 #[get("/")]
-fn index() -> &'static str {
-    "server turns off every hour. This will eventually change to 1 hour after everyone is offline\n\n\
-    if the page you are trying to access is taking a while to load, the server is likely starting or stopping \n\
-    and will load within 2 minutes. (I'm having issues with threads server-side and Rust is not forgiving.\n\n\
-    access by going to these links example:(heroku.whatever.the.url.is.com/command/start)\n\n\
-    currently implemented: \n\
-    \t/command/start\n\
-    \t/command/status\n\
-    start will start server if off, then give ip, otherwise will immediately give ip\n\
-    status will give status and ip if can get ip"
+async fn index() -> Result<NamedFile, NotFound<String>> {
+    return NamedFile::open("static/index.xhtml").await.map_err(|e| NotFound(e.to_string()));
 }
 #[get("/command/<command>")]
 async fn command(command: &RawStr) -> String {
+    println!("command!");
     let mut server = DEP_get_server().await;
+    println!("aaa");
     match command.as_str() {
         "start" => {
+            println!("wat the fuck");
             let status = server.status().await.unwrap();
 
             let ip = server.start().await.unwrap();
+            // (*trigger).0.try_send(()).unwrap();
+            let (sender, receiver) = mpsc::sync_channel(1);
 
+            thread::spawn(move || worker(receiver));
             return ip;
         },
         "status" => {
@@ -140,7 +145,10 @@ async fn DEP_get_ec2() -> Ec2Object {
     return ec2;
 }
 async fn DEP_get_server() -> MCServer {
-    let config_str = DEP_get_bucket_obj("ec2_credentials.ron").await;
+    let config_str = match &*env::var("LOCAL").unwrap() {
+        "true" => std::fs::read_to_string("data_priv/ec2_credentials.ron").unwrap(),
+        _ => DEP_get_bucket_obj("ec2_credentials.ron").await
+    };
 
     let config = match DEP_get_config(&*config_str, &*env::var("PRODDEV").unwrap()) {
         Some(val) => val,
@@ -158,10 +166,42 @@ async fn DEP_get_server() -> MCServer {
         None => panic!("Couldn't find instance! Does it exist?")
     };
 
+    ec2.start().await;
+
+    println!("ec2 been got");
+
+    let mut ssh: SSHAgent = loop {
+        match SSHAgent::new(&ec2, Path::new(&config.ssh_key.as_ref().unwrap())).await {
+            Ok(agent) => break agent,
+            Err(e) => {
+                // panic!("couldnt make ssh agent! Correct key?");
+                std::thread::sleep(std::time::Duration::from_secs(5));
+            }
+        };
+    };
+
+
     return MCServer::new(
         ec2,
-        config
+        config,
+        ssh
     )
+}
+
+fn worker(trigger: mpsc::Receiver<()>) {
+    // loop {
+    println!("start timer!!");
+    println!("{:?}",std::time::SystemTime::now().duration_since(UNIX_EPOCH));
+    println!("sleep call!");
+    spin_sleep::sleep(std::time::Duration::from_secs((3600)));
+    println!("{:?}",std::time::SystemTime::now().duration_since(UNIX_EPOCH));
+    println!("after last time!");
+
+    trigger.recv().unwrap();
+    let mut server = Runtime::new().expect("well fuck").block_on(DEP_get_server());
+    Runtime::new().expect("well fuck").block_on(server.stop());
+    println!("Hello!");
+    // }
 }
 
 #[tokio::main]
@@ -180,13 +220,12 @@ async fn main() {
     set_env_cred(env_cred).await;
 
 
-
     // let mut off_clock = Mutex::new(timer::Timer::new());
     // server.start().await;
 
     // println!("{}",server.log().await.unwrap());
-    rocket::ignite().mount("/", routes![index, command])
-        // .manage(off_clock)
+    rocket::ignite()
+        .mount("/", routes![index, command])
         .launch().await;
     // rocket::ignite()
 
