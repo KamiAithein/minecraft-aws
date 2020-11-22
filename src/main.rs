@@ -108,7 +108,7 @@ async fn command(mut is_shutdown_queued: State<'_,Arc<AtomicBool>>, command: &Ra
                 is_shutdown_queued.swap(true, Ordering::Relaxed);
                 let arc = (*is_shutdown_queued).clone();
                 let (sender, receiver) = mpsc::sync_channel(1);
-                thread::spawn(move || worker(receiver, arc, ip_to_socket));
+                thread::spawn(move || worker(receiver, arc, ip_to_socket, 60));
             }
             else {
                 println!("Shutdown already queued!");
@@ -203,46 +203,55 @@ async fn DEP_get_server() -> MCServer {
         ssh
     )
 }
-#[derive(Deserialize)]
-struct MCPlayers {
-    online: i32,
-    max: i32,
-    list: Option<Vec<String>>
-}
-#[derive(Deserialize)]
-struct MCResp {
-    ip: String,
-    port: i32,
-    online: bool,
-    players: Option<MCPlayers>
-}
-fn worker(trigger: mpsc::Receiver<()>, mut is_shutdown_queued: Arc<AtomicBool>, socket_ip: String) {
+// #[derive(Deserialize)]
+// struct MCPlayers {
+//     online: i32,
+//     max: i32,
+//     list: Option<Vec<String>>
+// }
+// #[derive(Deserialize)]
+// struct MCResp {
+//     ip: String,
+//     port: i32,
+//     online: bool,
+//     #[serde(with = "serde_with::json::nested")]
+//     players: Option<MCPlayers>
+// }
+fn worker(trigger: mpsc::Receiver<()>, mut is_shutdown_queued: Arc<AtomicBool>, socket_ip: String, sec: i32) {
     // loop {
     println!("start timer!!");
     println!("{:?}",std::time::SystemTime::now().duration_since(UNIX_EPOCH));
     println!("sleep call!");
-    spin_sleep::sleep(std::time::Duration::from_secs((60*60)));
+    spin_sleep::sleep(std::time::Duration::from_secs((sec as u64)));
     println!("{:?}",std::time::SystemTime::now().duration_since(UNIX_EPOCH));
     println!("after last time!");
-
-    let mut api = String::from("https://api.mcsrvstat.us/2/");
-    let mut ip_port = socket_ip.clone();
-    ip_port.push_str(":25565");
-    api.push_str(&*ip_port);
-    let res_no_json = Runtime::new().expect("well fuck").block_on(reqwest::get(Url::from_str(&api).unwrap())).unwrap();
-    let res: MCResp = Runtime::new().expect("well fuck").block_on(res_no_json.json::<MCResp>()).unwrap();
-
-
-    let empty_server = res.players.is_none() || res.players.unwrap().online == 0;
-    if empty_server {
-        let mut server = Runtime::new().expect("well fuck").block_on(DEP_get_server());
-        Runtime::new().expect("well fuck").block_on(server.stop());
-        is_shutdown_queued.swap(false, Ordering::Relaxed);
-        println!("Empty server shutdown!");
-    }
-    else {
-        worker(trigger, is_shutdown_queued, socket_ip);
-    }
+    //
+    // let mut api = String::from("https://api.mcsrvstat.us/1/");
+    // let mut ip_port = socket_ip.clone();
+    // ip_port.push_str(":25565");
+    // api.push_str(&*ip_port);
+    // println!("{}",api);
+    // let res_no_json = Runtime::new().expect("well fuck").block_on(reqwest::get(Url::from_str(&api).unwrap())).unwrap();
+    // match Runtime::new().expect("well fuck").block_on(res_no_json.json::<MCResp>()) {
+    //     Ok(res) => {
+    //         let empty_server = res.players.is_none() || res.players.unwrap().online == 0;
+    //         if empty_server {
+    //             println!("NOONE!");
+                let mut server = Runtime::new().expect("well fuck").block_on(DEP_get_server());
+                Runtime::new().expect("well fuck").block_on(server.stop());
+                is_shutdown_queued.swap(false, Ordering::Relaxed);
+    //             println!("Empty server shutdown!");
+    //         }
+    //         else {
+    //             println!("SOMEONE!!");
+    //             worker(trigger, is_shutdown_queued, socket_ip, 30);
+    //         }
+    //     },
+    //     Err(e) => {
+    //         println!("ERR!");
+    //         worker(trigger, is_shutdown_queued, socket_ip, 30);
+    //     }
+    // };
     // }
 }
 
