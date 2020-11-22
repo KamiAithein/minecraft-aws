@@ -138,7 +138,7 @@ impl Server for MCServer {
 
     async fn log(&self) -> Result<String, Box<dyn Error>> {
 
-        Ok(DEP_exec(&self.ssh, "cat ~/minecraft/logs/latest.log"))
+        Ok(DEP_exec(&self.ssh, "cat ~/minecraft/logs/latest.log").replace("\n","<br/>"))
     }
 
     async fn get_ip(&self) -> Result<String, Box<dyn Error>> {
