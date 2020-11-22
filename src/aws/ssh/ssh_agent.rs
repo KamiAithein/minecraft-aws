@@ -29,7 +29,7 @@ impl SSHAgent {
         sess.set_tcp_stream(tcp);
         sess.handshake()?;
         sess.userauth_pubkey_file("ubuntu", None, &key_path, None)?;
-
+        println!("SSHAgent:new:Authenticated agent!");
         assert!(sess.authenticated());
 
         Ok(SSHAgent{

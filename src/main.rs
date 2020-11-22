@@ -46,15 +46,16 @@ use tokio::runtime::Runtime;
 use rocket::response::NamedFile;
 use rocket::response::status::NotFound;
 use rocket::fairing::AdHoc;
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc};
 use std::time::UNIX_EPOCH;
+
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::borrow::Borrow;
 
 
 // const CONFIG_PATH: &str = "data/ec2_credentials.ron";
 ///dev or prod
 const CREDENTIAL: &str = "dev";
-
-struct KillHandler(mpsc::SyncSender<()>);
 
 fn DEP_get_config(config: &str, key: &str) -> Option<Ec2Config> {
     let mut configs: HashMap<String, Ec2Config> = from_str(config).unwrap();
@@ -84,7 +85,7 @@ async fn index() -> Result<NamedFile, NotFound<String>> {
     return NamedFile::open("static/index.xhtml").await.map_err(|e| NotFound(e.to_string()));
 }
 #[get("/command/<command>")]
-async fn command(command: &RawStr) -> String {
+async fn command(mut is_shutdown_queued: State<'_,Arc<AtomicBool>>, command: &RawStr) -> String {
     println!("command!");
     let mut server = DEP_get_server().await;
     println!("aaa");
@@ -95,9 +96,18 @@ async fn command(command: &RawStr) -> String {
 
             let ip = server.start().await.unwrap();
             // (*trigger).0.try_send(()).unwrap();
-            let (sender, receiver) = mpsc::sync_channel(1);
+            println!("Checking if shutdown queued!");
+            if !(**is_shutdown_queued).load(Ordering::Relaxed) {
+                println!("Shutdown not queued, queuing!");
+                is_shutdown_queued.swap(true, Ordering::Relaxed);
+                let arc = (*is_shutdown_queued).clone();
+                let (sender, receiver) = mpsc::sync_channel(1);
+                thread::spawn(move || worker(receiver, arc));
+            }
+            else {
+                println!("Shutdown already queued!");
+            }
 
-            thread::spawn(move || worker(receiver));
             return ip;
         },
         "status" => {
@@ -188,7 +198,7 @@ async fn DEP_get_server() -> MCServer {
     )
 }
 
-fn worker(trigger: mpsc::Receiver<()>) {
+fn worker(trigger: mpsc::Receiver<()>, mut is_shutdown_queued: Arc<AtomicBool>) {
     // loop {
     println!("start timer!!");
     println!("{:?}",std::time::SystemTime::now().duration_since(UNIX_EPOCH));
@@ -200,6 +210,7 @@ fn worker(trigger: mpsc::Receiver<()>) {
     trigger.recv().unwrap();
     let mut server = Runtime::new().expect("well fuck").block_on(DEP_get_server());
     Runtime::new().expect("well fuck").block_on(server.stop());
+    is_shutdown_queued.swap(false, Ordering::Relaxed);
     println!("Hello!");
     // }
 }
@@ -224,8 +235,12 @@ async fn main() {
     // server.start().await;
 
     // println!("{}",server.log().await.unwrap());
+
+    let is_shutdown_queued = Arc::new(AtomicBool::new(false));
+
     rocket::ignite()
         .mount("/", routes![index, command])
+        .manage(is_shutdown_queued)
         .launch().await;
     // rocket::ignite()
 
