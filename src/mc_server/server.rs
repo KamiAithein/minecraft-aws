@@ -124,7 +124,7 @@ impl Server for MCServer {
     async fn stop(&mut self) -> Result<(), Box<dyn Error>> {
 
         self.command("stop").await;
-        DEP_run(&self.ssh, &*format!("sudo shutdown 0"));
+        DEP_run(&self.ssh, &*format!("sudo shutdown +1"));
 
         Ok(()) //TODO actual return
     }
