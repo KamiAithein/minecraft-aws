@@ -107,7 +107,7 @@ async fn command(mut is_shutdown_queued: State<'_,Arc<AtomicBool>>, mut server_a
                 is_shutdown_queued.swap(true, Ordering::Relaxed);
                 let arc = (*is_shutdown_queued).clone();
                 let (sender, receiver) = mpsc::sync_channel(1);
-                thread::spawn(move || worker(receiver, arc, ip_to_socket, 60, server));
+                thread::spawn(move || worker(receiver, arc, ip_to_socket, 60*60, server));
             }
             else {
                 println!("Shutdown already queued!");
