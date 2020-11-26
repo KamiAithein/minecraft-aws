@@ -138,7 +138,7 @@ async fn command(mut is_shutdown_queued: State<'_,Arc<AtomicBool>>, mut server_a
     }
 }
 async fn DEP_get_ec2() -> Ec2Object {
-    let config_str = DEP_get_bucket_obj("ec2_credentials.ron").await;
+    let config_str = DEP_get_bucket_obj("ec2_credentials_patch.ron").await;
 
     let config = match DEP_get_config(&*config_str, &*env::var("PRODDEV").unwrap()) {
         Some(val) => val,
