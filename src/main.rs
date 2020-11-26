@@ -128,14 +128,11 @@ async fn command(mut is_shutdown_queued: State<'_,Arc<AtomicBool>>, mut server_a
             }
         }
         "stop" => {
-            let status = server.lock().await.status().await.unwrap().clone();
-            if &*status == "running" {
-                server.lock().await.stop().await;
-                format!("stopped!")
-            }
-            else {
-                format!("already stopped!")
-            }
+            let ip = server.lock().await.start().await.unwrap().clone();
+            let ip_to_socket = ip.clone();
+            let arc = (*is_shutdown_queued).clone();
+            let (sender, receiver) = mpsc::sync_channel(1);
+            worker(receiver, arc, ip_to_socket, 1, server)
         }
         _ => format!("unknown command!")
     }
@@ -217,7 +214,7 @@ struct MCResp {
     #[serde(skip_serializing_if = "Option::is_none")]
     players: Option<MCPlayers>
 }
-fn worker(trigger: mpsc::Receiver<()>, mut is_shutdown_queued: Arc<AtomicBool>, socket_ip: String, sec: i32, mut server: Arc<Mutex<MCServer>>) {
+fn worker(trigger: mpsc::Receiver<()>, mut is_shutdown_queued: Arc<AtomicBool>, socket_ip: String, sec: i32, mut server: Arc<Mutex<MCServer>>) -> String {
     // loop {
     println!("start timer!!");
     println!("{:?}",std::time::SystemTime::now().duration_since(UNIX_EPOCH));
@@ -242,12 +239,10 @@ fn worker(trigger: mpsc::Receiver<()>, mut is_shutdown_queued: Arc<AtomicBool>, 
                 let mut ec2 = Runtime::new().expect("well fuck").block_on( DEP_get_ec2());
                 Runtime::new().expect("well fuck").block_on(ec2.stop());
                 is_shutdown_queued.swap(false, Ordering::Relaxed);
-                println!("Empty server shutdown!");
+                "Empty server shutdown!"
             }
             else {
-                println!("SOMEONE!!");
-                println!("{}",stat);
-                worker(trigger, is_shutdown_queued, socket_ip, 60*5 + 10, server);//reschedule after cache
+                "SOMEONE!!"
             }
         },
         Err(e) => {

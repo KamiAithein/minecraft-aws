@@ -29,6 +29,17 @@
             xhttp.open("GET", "command/start", true);
             xhttp.send();
         }
+        function stop() {
+            document.getElementById("stop_p").innerHTML = "stopping...";
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                        document.getElementById("stop_p").innerHTML = this.responseText;
+                    }
+                };
+                xhttp.open("GET", "command/stop", true);
+                xhttp.send();
+        }
         ]]>
     </script>
 </head>
@@ -39,7 +50,8 @@
 <p id="start_p"></p>
 <button type="button" onclick="status()">status</button>
 <p id="status_p"></p>
-
+<button type="button" onclick="status()">shutdown</button>
+<p id="shutdown_p"></p>
 
 </body>
 </html>
