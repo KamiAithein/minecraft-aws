@@ -249,9 +249,9 @@ fn worker(trigger: mpsc::Receiver<()>, mut is_shutdown_queued: Arc<AtomicBool>, 
             println!("{}",e);
             println!("some error");
             let val: String = worker(trigger, is_shutdown_queued, socket_ip, 5, server) //retry soon
-            return val;
+            val
         }
-    };
+    }
 }
 
 #[tokio::main]
