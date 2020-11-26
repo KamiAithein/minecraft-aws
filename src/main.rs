@@ -239,17 +239,17 @@ fn worker(trigger: mpsc::Receiver<()>, mut is_shutdown_queued: Arc<AtomicBool>, 
                 let mut ec2 = Runtime::new().expect("well fuck").block_on( DEP_get_ec2());
                 Runtime::new().expect("well fuck").block_on(ec2.stop());
                 is_shutdown_queued.swap(false, Ordering::Relaxed);
-                "Empty server shutdown!"
+                "Empty server shutdown!".to_string()
             }
             else {
-                "SOMEONE!!"
+                "SOMEONE!!".to_string()
             }
         },
         Err(e) => {
             println!("{}",e);
             println!("some error");
-            worker(trigger, is_shutdown_queued, socket_ip, 5, server) //retry soon
-
+            let val: String = worker(trigger, is_shutdown_queued, socket_ip, 5, server) //retry soon
+            return val;
         }
     };
 }
