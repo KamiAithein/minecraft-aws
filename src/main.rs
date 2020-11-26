@@ -248,7 +248,7 @@ fn worker(trigger: mpsc::Receiver<()>, mut is_shutdown_queued: Arc<AtomicBool>, 
         Err(e) => {
             println!("{}",e);
             println!("some error");
-            worker(trigger, is_shutdown_queued, socket_ip, 5, server); //retry soon
+            worker(trigger, is_shutdown_queued, socket_ip, 5, server) //retry soon
 
         }
     };
