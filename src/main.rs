@@ -86,7 +86,7 @@ async fn DEP_get_bucket_obj(obj: &str) -> String {
 
 #[get("/")]
 async fn index() -> Result<NamedFile, NotFound<String>> {
-    return NamedFile::open("static/index.xhtml").await.map_err(|e| NotFound(e.to_string()));
+    return NamedFile::open("static/index.html").await.map_err(|e| NotFound(e.to_string()));
 }
 #[get("/command/<command>")]
 async fn command(mut is_shutdown_queued: State<'_,Arc<AtomicBool>>, mut server_arc: State<'_,Arc<Mutex<MCServer>>>, command: &RawStr) -> String {
