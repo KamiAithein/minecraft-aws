@@ -99,19 +99,19 @@ async fn command(mut is_shutdown_queued: State<'_,Arc<AtomicBool>>, mut server_a
     match command.as_str() {
         "start" => {
             let ip = server.lock().await.start().await.unwrap().clone();
-            let ip_to_socket = ip.clone();
-            // (*trigger).0.try_send(()).unwrap();
-            println!("Checking if shutdown queued!");
-            if !(**is_shutdown_queued).load(Ordering::Relaxed) {
-                println!("Shutdown not queued, queuing!");
-                is_shutdown_queued.swap(true, Ordering::Relaxed);
-                let arc = (*is_shutdown_queued).clone();
-                let (sender, receiver) = mpsc::sync_channel(1);
-                thread::spawn(move || worker(receiver, arc, ip_to_socket, 60*60, server));
-            }
-            else {
-                println!("Shutdown already queued!");
-            }
+            // let ip_to_socket = ip.clone();
+            // // (*trigger).0.try_send(()).unwrap();
+            // println!("Checking if shutdown queued!");
+            // if !(**is_shutdown_queued).load(Ordering::Relaxed) {
+            //     println!("Shutdown not queued, queuing!");
+            //     is_shutdown_queued.swap(true, Ordering::Relaxed);
+            //     let arc = (*is_shutdown_queued).clone();
+            //     let (sender, receiver) = mpsc::sync_channel(1);
+            //     thread::spawn(move || worker(receiver, arc, ip_to_socket, 60*60, server));
+            // }
+            // else {
+            //     println!("Shutdown already queued!");
+            // }
 
             return ip.to_string();
         },
@@ -225,45 +225,45 @@ struct MCResp {
     #[serde(skip_serializing_if = "Option::is_none")]
     players: Option<MCPlayers>
 }
-fn worker(trigger: mpsc::Receiver<()>, mut is_shutdown_queued: Arc<AtomicBool>, socket_ip: String, sec: i32, mut server: Arc<Mutex<MCServer>>) -> String {
-    // loop {
-    println!("start timer!!");
-    println!("{:?}",std::time::SystemTime::now().duration_since(UNIX_EPOCH));
-    println!("sleep call!");
-    spin_sleep::sleep(std::time::Duration::from_secs((sec as u64)));
-    println!("{:?}",std::time::SystemTime::now().duration_since(UNIX_EPOCH));
-    println!("after last time!");
-
-    let mut api = String::from("https://api.mcsrvstat.us/2/");
-    let mut ip_port = socket_ip.clone();
-    ip_port.push_str(":25565");
-    api.push_str(&*ip_port);
-    println!("{}",api);
-    let res_no_json = Runtime::new().expect("well fuck").block_on(reqwest::get(Url::from_str(&api).unwrap())).unwrap();
-    let stat = res_no_json.status();
-    match Runtime::new().expect("well fuck").block_on((res_no_json).json::<MCResp>()) {
-        Ok(res) => {
-            let empty_server = res.players.is_none() || res.players.unwrap().online == 0;
-            if empty_server {
-                println!("NOONE!");
-                println!("{}",stat);
-                let mut ec2 = Runtime::new().expect("well fuck").block_on( DEP_get_ec2());
-                Runtime::new().expect("well fuck").block_on(ec2.stop());
-                is_shutdown_queued.swap(false, Ordering::Relaxed);
-                "Empty server shutdown!".to_string()
-            }
-            else {
-                "SOMEONE!!".to_string()
-            }
-        },
-        Err(e) => {
-            println!("{}",e);
-            println!("some error");
-            worker(trigger, is_shutdown_queued, socket_ip, 5, server) //retry soon
-
-        }
-    }
-}
+// fn worker(trigger: mpsc::Receiver<()>, mut is_shutdown_queued: Arc<AtomicBool>, socket_ip: String, sec: i32, mut server: Arc<Mutex<MCServer>>) -> String {
+//     // loop {
+//     println!("start timer!!");
+//     println!("{:?}",std::time::SystemTime::now().duration_since(UNIX_EPOCH));
+//     println!("sleep call!");
+//     spin_sleep::sleep(std::time::Duration::from_secs((sec as u64)));
+//     println!("{:?}",std::time::SystemTime::now().duration_since(UNIX_EPOCH));
+//     println!("after last time!");
+//
+//     let mut api = String::from("https://api.mcsrvstat.us/2/");
+//     let mut ip_port = socket_ip.clone();
+//     ip_port.push_str(":25565");
+//     api.push_str(&*ip_port);
+//     println!("{}",api);
+//     let res_no_json = Runtime::new().expect("well fuck").block_on(reqwest::get(Url::from_str(&api).unwrap())).unwrap();
+//     let stat = res_no_json.status();
+//     match Runtime::new().expect("well fuck").block_on((res_no_json).json::<MCResp>()) {
+//         Ok(res) => {
+//             let empty_server = res.players.is_none() || res.players.unwrap().online == 0;
+//             if empty_server {
+//                 println!("NOONE!");
+//                 println!("{}",stat);
+//                 let mut ec2 = Runtime::new().expect("well fuck").block_on( DEP_get_ec2());
+//                 Runtime::new().expect("well fuck").block_on(ec2.stop());
+//                 is_shutdown_queued.swap(false, Ordering::Relaxed);
+//                 "Empty server shutdown!".to_string()
+//             }
+//             else {
+//                 "SOMEONE!!".to_string()
+//             }
+//         },
+//         Err(e) => {
+//             println!("{}",e);
+//             println!("some error");
+//             worker(trigger, is_shutdown_queued, socket_ip, 5, server) //retry soon
+//
+//         }
+//     }
+// }
 
 #[tokio::main]
 async fn main() {
