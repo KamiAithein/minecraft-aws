@@ -22,7 +22,7 @@
                 if (this.readyState == 4 && this.status == 200) {
                     document.getElementById("start_p").innerHTML = this.responseText;
                 }
-                else{
+                else {
                     document.getElementById("start_p").innerHTML = "Error! Failed to communicate. Try again in a few minutes, the server may be shutting down."
                 }
             };

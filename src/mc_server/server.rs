@@ -95,27 +95,53 @@ impl fmt::Display for State {
 pub struct MCServer {
     ec2: Ec2Object,
     config: Ec2Config,
-    ssh: SSHAgent,
+    ssh: Option<SSHAgent>,
     state: State
 }
 
 impl MCServer {
-    pub async fn new(ec2: Ec2Object, config: Ec2Config, ssh: SSHAgent) -> MCServer {
+    pub async fn new(ec2: Ec2Object, config: Ec2Config, ssh: Option<SSHAgent>) -> MCServer {
         let status = match ec2.status().await {
             Some(val) => val,
             None => panic!("No status! Correct id?")
         };
-        let mut state: State = match &status[..] {
+        let state = match &status[..] {
             "stopped" => State::STOPPED,
-            "stopping" => State::STOPPED,
+            "stopping" => State::STOPPING,
             "running" => State::STARTED,
-            _ => State::STOPPED
+            "pending" => State::STARTING,
+            _ => State::ERROR
         };
-
+        let mut ssh_checked: Option<SSHAgent> = None;
+        match state {
+            State::STARTING => {
+                loop {
+                    match SSHAgent::new(&ec2, Path::new(&config.ssh_key.as_ref().unwrap())).await {
+                        Ok(agent) => ssh_checked = Some(agent),
+                        Err(e) => {
+                            // panic!("couldnt make ssh agent! Correct key?");
+                            std::thread::sleep(std::time::Duration::from_secs(5));
+                        }
+                    }
+                }
+            },
+            State::STARTED => {
+                loop {
+                    match SSHAgent::new(&ec2, Path::new(&config.ssh_key.as_ref().unwrap())).await {
+                        Ok(agent) => ssh_checked = Some(agent),
+                        Err(e) => {
+                            // panic!("couldnt make ssh agent! Correct key?");
+                            std::thread::sleep(std::time::Duration::from_secs(5));
+                        }
+                    }
+                }
+            },
+            _ =>{}
+        }
         MCServer {
             ec2,
             config,
-            ssh,
+            ssh: ssh_checked,
             state
         }
     }
@@ -145,15 +171,27 @@ impl Server for MCServer {
         let init: Vec<String> = self.config.init_script.as_ref().unwrap().clone();
         let main: Vec<String> = self.config.main_script.as_ref().unwrap().clone();
 
+        let mut ssh: SSHAgent = loop {
+            match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
+                Ok(agent) => break agent,
+                Err(e) => {
+                    // panic!("couldnt make ssh agent! Correct key?");
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                }
+            };
+        };
+
+        self.ssh = Some(ssh);
+
         // thread::spawn(move ||{
-        if !DEP_exec(&mut self.ssh, "ls ~/minecraft").contains("server.jar") {
+        if !DEP_exec(&mut (self.ssh.as_mut().unwrap()), "ls ~/minecraft").contains("server.jar") {
             for command in init {
-                DEP_run(&mut self.ssh, &*command);
+                DEP_run(&mut (self.ssh.as_mut().unwrap()), &*command);
             }
         }
-            if !DEP_exec(&mut self.ssh, "ps -aux").contains("minecraft") {
+            if !DEP_exec(&mut (self.ssh.as_mut().unwrap()), "ps -aux").contains("minecraft") {
                 for command in main {
-                    println!("main: {}", self.ssh.execute(&*command).unwrap());
+                    println!("main: {}",  (self.ssh.as_mut().unwrap()).execute(&*command).unwrap());
                     // run(ssh, &**command).await;
                 }
             }
@@ -171,14 +209,14 @@ impl Server for MCServer {
 
         self.command("stop").await;
         self.state = State::STOPPED;
-        DEP_run(&mut self.ssh, &*format!("sudo shutdown +1"));
-        self.ssh.close();
+        DEP_run(&mut  (self.ssh.as_mut().unwrap()), &*format!("sudo shutdown +1"));
+        (self.ssh.as_mut().unwrap()).close();
         Ok(()) //TODO actual return
     }
 
     async fn command(&mut self, cmd: &str) -> Result<String, Box<dyn Error>> {
 
-        DEP_run(&mut self.ssh, &*format!("sudo screen -S mc -X stuff \"{}^M\"", cmd));
+        DEP_run(&mut  (self.ssh.as_mut().unwrap()), &*format!("sudo screen -S mc -X stuff \"{}^M\"", cmd));
 
         Ok("()".parse().unwrap()) //TODO actual thing
     }
@@ -186,7 +224,7 @@ impl Server for MCServer {
     async fn log(&mut self) -> Result<String, Box<dyn Error>> {
         match self.state {
             State::STARTED => {
-                Ok(DEP_exec(&mut self.ssh, "cat ~/minecraft/logs/latest.log").replace("\n", "<br/>"))
+                Ok(DEP_exec(&mut  (self.ssh.as_mut().unwrap()), "cat ~/minecraft/logs/latest.log").replace("\n", "<br/>"))
             }
             _ => {
                 Ok(format!("server is either in a starting or stopping state, state: {}", self.state))

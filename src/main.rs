@@ -98,7 +98,6 @@ async fn command(mut is_shutdown_queued: State<'_,Arc<AtomicBool>>, mut server_a
     let status: MCState = server.lock().await.status().await.clone();
     match command.as_str() {
         "start" => {
-
             let ip = server.lock().await.start().await.unwrap().clone();
             let ip_to_socket = ip.clone();
             // (*trigger).0.try_send(()).unwrap();
@@ -191,25 +190,25 @@ async fn DEP_get_server() -> MCServer {
         None => panic!("Couldn't find instance! Does it exist?")
     };
 
-    ec2.start().await;
-
-    println!("ec2 been got");
-
-    let mut ssh: SSHAgent = loop {
-        match SSHAgent::new(&ec2, Path::new(&config.ssh_key.as_ref().unwrap())).await {
-            Ok(agent) => break agent,
-            Err(e) => {
-                // panic!("couldnt make ssh agent! Correct key?");
-                std::thread::sleep(std::time::Duration::from_secs(5));
-            }
-        };
-    };
+    // ec2.start().await;
+    //
+    // println!("ec2 been got");
+    //
+    // let mut ssh: SSHAgent = loop {
+    //     match SSHAgent::new(&ec2, Path::new(&config.ssh_key.as_ref().unwrap())).await {
+    //         Ok(agent) => break agent,
+    //         Err(e) => {
+    //             // panic!("couldnt make ssh agent! Correct key?");
+    //             std::thread::sleep(std::time::Duration::from_secs(5));
+    //         }
+    //     };
+    // };
 
 
     return MCServer::new(
         ec2,
         config,
-        ssh
+        None
     ).await
 }
 
