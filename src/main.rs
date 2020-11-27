@@ -20,6 +20,8 @@ use crate::aws::virtual_machine::ec2;
 use crate::aws::virtual_machine::vm::{VMCore, VMNetwork};
 use crate::aws::ssh::ssh_agent;
 
+use mc_server::server::State as MCState;
+
 use std::net::TcpStream;
 use std::path::Path;
 use ssh2::{Session, Channel, ReadWindow};
@@ -93,10 +95,9 @@ async fn command(mut is_shutdown_queued: State<'_,Arc<AtomicBool>>, mut server_a
     println!("command!");
     let mut server= (*server_arc).clone();
     println!("aaa");
+    let status: MCState = server.lock().await.status().await.clone();
     match command.as_str() {
         "start" => {
-            println!("wat the fuck");
-            let status = server.lock().await.status().await.unwrap().clone();
 
             let ip = server.lock().await.start().await.unwrap().clone();
             let ip_to_socket = ip.clone();
@@ -116,23 +117,34 @@ async fn command(mut is_shutdown_queued: State<'_,Arc<AtomicBool>>, mut server_a
             return ip.to_string();
         },
         "status" => {
-            let status = server.lock().await.status().await.unwrap().clone();
-            if &*status == "running" {
-                let ip_good = (server.lock().await.get_ip().await.unwrap().clone());
-                let logs_good = server.lock().await.log().await.unwrap().clone();
+            match status {
+                MCState::STARTED  => {
+                    let ip_good = (server.lock().await.get_ip().await.unwrap().clone());
+                    let logs_good = server.lock().await.log().await.unwrap().clone();
+                    format!("status: {}<br/>ip: {}<br/>logs: {}", status, ip_good, logs_good)
+                }
+                MCState::STARTING => {
+                    "starting!".to_string()
+                }
+                _ =>format!("status: {}<br/>ip: {}<br/>logs: {}", status, "no ip not on", "could not retrieve logs")
 
-                format!("status: {}<br/>ip: {}<br/>logs: {}", status, ip_good, logs_good)
-            }
-            else{
-                format!("status: {}<br/>ip: {}<br/>logs: {}", status, "no ip not on", "could not retrieve logs")
+
             }
         }
         "stop" => {
-            let ip = server.lock().await.start().await.unwrap().clone();
-            let ip_to_socket = ip.clone();
-            let arc = (*is_shutdown_queued).clone();
-            let (sender, receiver) = mpsc::sync_channel(1);
-            worker(receiver, arc, ip_to_socket, 1, server)
+            match status {
+                MCState::STARTED  => {
+                    server.lock().await.stop().await;
+                    format!("stopped!")
+                }
+                MCState::STARTING => {
+                    server.lock().await.stop().await;
+                    format!("stopped!")
+                }
+                _ =>format!("already stopped!")
+
+
+            }
         }
         _ => format!("unknown command!")
     }
@@ -239,19 +251,19 @@ fn worker(trigger: mpsc::Receiver<()>, mut is_shutdown_queued: Arc<AtomicBool>, 
                 let mut ec2 = Runtime::new().expect("well fuck").block_on( DEP_get_ec2());
                 Runtime::new().expect("well fuck").block_on(ec2.stop());
                 is_shutdown_queued.swap(false, Ordering::Relaxed);
-                "Empty server shutdown!"
+                "Empty server shutdown!".to_string()
             }
             else {
-                "SOMEONE!!"
+                "SOMEONE!!".to_string()
             }
         },
         Err(e) => {
             println!("{}",e);
             println!("some error");
-            worker(trigger, is_shutdown_queued, socket_ip, 5, server); //retry soon
+            worker(trigger, is_shutdown_queued, socket_ip, 5, server) //retry soon
 
         }
-    };
+    }
 }
 
 #[tokio::main]

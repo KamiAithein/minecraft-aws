@@ -61,8 +61,9 @@ pub trait Server {
 
     async fn get_ip(&self) -> Result<String, Box<dyn Error>>;
 
-    async fn status(&self) -> Result<String, Box<dyn Error>>;
+    async fn status(&self) -> State;
 }
+#[derive(Clone)]
 pub enum State {
     STARTING, //ec2 starting
     STARTED,    //mcserver started/ing
@@ -196,8 +197,8 @@ impl Server for MCServer {
     async fn get_ip(&self) -> Result<String, Box<dyn Error>> {
         Ok(self.ec2.get_public_ip().await.unwrap_or_else(|| "couldnt get ip".parse().unwrap()))
     }
-    async fn status(&self) -> Result<String, Box<dyn Error>> {
-        Ok(self.ec2.status().await.unwrap_or_else(|| "couldn't get status".parse().unwrap()))
+    async fn status(&self) -> State {
+        self.state.clone()
     }
 
 }
