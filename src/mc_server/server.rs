@@ -112,36 +112,10 @@ impl MCServer {
             "pending" => State::STARTING,
             _ => State::ERROR
         };
-        let mut ssh_checked: Option<SSHAgent> = None;
-        match state {
-            State::STARTING => {
-                loop {
-                    match SSHAgent::new(&ec2, Path::new(&config.ssh_key.as_ref().unwrap())).await {
-                        Ok(agent) => ssh_checked = Some(agent),
-                        Err(e) => {
-                            // panic!("couldnt make ssh agent! Correct key?");
-                            std::thread::sleep(std::time::Duration::from_secs(5));
-                        }
-                    }
-                }
-            },
-            State::STARTED => {
-                loop {
-                    match SSHAgent::new(&ec2, Path::new(&config.ssh_key.as_ref().unwrap())).await {
-                        Ok(agent) => ssh_checked = Some(agent),
-                        Err(e) => {
-                            // panic!("couldnt make ssh agent! Correct key?");
-                            std::thread::sleep(std::time::Duration::from_secs(5));
-                        }
-                    }
-                }
-            },
-            _ =>{}
-        }
         MCServer {
             ec2,
             config,
-            ssh: ssh_checked,
+            ssh,
             state
         }
     }
@@ -206,6 +180,17 @@ impl Server for MCServer {
     }
 
     async fn stop(&mut self) -> Result<(), Box<dyn Error>> {
+        if self.ssh.is_none() {
+            self.ssh = Some(loop {
+                match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
+                    Ok(agent) => break agent,
+                    Err(e) => {
+                        // panic!("couldnt make ssh agent! Correct key?");
+                        std::thread::sleep(std::time::Duration::from_secs(5));
+                    }
+                };
+            });
+        }
 
         self.command("stop").await;
         self.state = State::STOPPED;
@@ -215,7 +200,17 @@ impl Server for MCServer {
     }
 
     async fn command(&mut self, cmd: &str) -> Result<String, Box<dyn Error>> {
-
+        if self.ssh.is_none() {
+            self.ssh = Some(loop {
+                match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
+                    Ok(agent) => break agent,
+                    Err(e) => {
+                        // panic!("couldnt make ssh agent! Correct key?");
+                        std::thread::sleep(std::time::Duration::from_secs(5));
+                    }
+                };
+            });
+        }
         DEP_run(&mut  (self.ssh.as_mut().unwrap()), &*format!("sudo screen -S mc -X stuff \"{}^M\"", cmd));
 
         Ok("()".parse().unwrap()) //TODO actual thing
@@ -224,6 +219,17 @@ impl Server for MCServer {
     async fn log(&mut self) -> Result<String, Box<dyn Error>> {
         match self.state {
             State::STARTED => {
+                if self.ssh.is_none() {
+                    self.ssh = Some(loop {
+                        match SSHAgent::new(&self.ec2, Path::new(&self.config.ssh_key.as_ref().unwrap())).await {
+                            Ok(agent) => break agent,
+                            Err(e) => {
+                                // panic!("couldnt make ssh agent! Correct key?");
+                                std::thread::sleep(std::time::Duration::from_secs(5));
+                            }
+                        };
+                    });
+                }
                 Ok(DEP_exec(&mut  (self.ssh.as_mut().unwrap()), "cat ~/minecraft/logs/latest.log").replace("\n", "<br/>"))
             }
             _ => {
