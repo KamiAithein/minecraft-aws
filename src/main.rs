@@ -121,10 +121,10 @@ async fn command(mut is_shutdown_queued: State<'_,Arc<AtomicBool>>, mut server_a
                 let ip_good = (server.lock().await.get_ip().await.unwrap().clone());
                 let logs_good = server.lock().await.log().await.unwrap().clone();
 
-                format!("status: {}\nip: {}\nlogs: {}", status, ip_good, logs_good)
+                format!("status: {}<br/>ip: {}<br/>logs: {}", status, ip_good, logs_good)
             }
             else{
-                format!("status: {}\nip: {}\nlogs: {}", status, "no ip not on", "could not retrieve logs")
+                format!("status: {}<br/>ip: {}<br/>logs: {}", status, "no ip not on", "could not retrieve logs")
             }
         }
         "stop" => {
@@ -201,7 +201,7 @@ async fn DEP_get_server() -> MCServer {
         ec2,
         config,
         ssh
-    )
+    ).await
 }
 
 #[derive(Deserialize, Debug, Clone)]

@@ -37,13 +37,15 @@ impl SSHAgent {
         })
     }
 
-    pub fn execute(&self, command: &str) -> String {
-        let mut channel = self.session.channel_session().unwrap();
+    pub fn execute(&mut self, command: &str) -> Result<String, Box<dyn Error>> {
+        let mut channel = match self.session.channel_session() {
+            Ok(ch) => ch,
+            Err(E) => {
+                panic!("channel error!");
+            }
+        };
         let s = Self::execute_with(&mut channel, command);
-
-        channel.wait_close();
-
-        s
+        Ok(s)
     }
 
     pub fn execute_with(channel: &mut Channel, command: &str) -> String {
@@ -52,6 +54,7 @@ impl SSHAgent {
         channel.read_to_string(&mut result_string);
 
         result_string.push_str(channel.exit_status().unwrap().to_string().as_ref());
+        channel.close();
         result_string
     }
 
