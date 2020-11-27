@@ -29,7 +29,7 @@ use core::fmt;
 
 fn DEP_on_start(ssh: &mut SSHAgent, startup: &Vec<String>) {
     println!("start!");
-    if !DEP_exec(ssh, "ls ~/minecraft").contains("server.jar") {
+    if !DEP_exec(ssh, "ls ~/spigot").contains("spigot-1.16.4.jar") {
         println!("making minecraft!");
         for command in startup {
             DEP_run(ssh, &**command);
@@ -158,12 +158,12 @@ impl Server for MCServer {
         self.ssh = Some(ssh);
 
         // thread::spawn(move ||{
-        if !DEP_exec(&mut (self.ssh.as_mut().unwrap()), "ls ~/minecraft").contains("server.jar") {
+        if !DEP_exec(&mut (self.ssh.as_mut().unwrap()), "ls ~/spigot").contains("spigot-1.16.4.jar") {
             for command in init {
                 DEP_run(&mut (self.ssh.as_mut().unwrap()), &*command);
             }
         }
-            if !DEP_exec(&mut (self.ssh.as_mut().unwrap()), "ps -aux").contains("minecraft") {
+            if !DEP_exec(&mut (self.ssh.as_mut().unwrap()), "ps -aux").contains("spigot") {
                 for command in main {
                     println!("main: {}",  (self.ssh.as_mut().unwrap()).execute(&*command).unwrap());
                     // run(ssh, &**command).await;
@@ -230,7 +230,7 @@ impl Server for MCServer {
                         };
                     });
                 }
-                Ok(DEP_exec(&mut  (self.ssh.as_mut().unwrap()), "cat ~/minecraft/logs/latest.log").replace("\n", "<br/>"))
+                Ok(DEP_exec(&mut  (self.ssh.as_mut().unwrap()), "cat ~/spigot/logs/latest.log").replace("\n", "<br/>"))
             }
             _ => {
                 Ok(format!("server is either in a starting or stopping state, state: {}", self.state))
